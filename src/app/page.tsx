@@ -1,103 +1,221 @@
+"use client";
+
+import useSocket from "@/hooks/useSocket";
+import { IMessage, IChatRoom } from "@/types/socket";
 import Image from "next/image";
+import { useEffect, useState, useRef } from "react";
 
-export default function Home() {
+export default function ChatComponent() {
+  const {
+    isConnected,
+    messages,
+    rooms,
+    joinRoom,
+    sendMessage,
+    fetchRooms,
+    markAsRead,
+  } = useSocket();
+
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleJoinRoom = (roomId: string) => {
+    joinRoom(roomId);
+    setCurrentRoom(roomId);
+    // Mark existing messages as read when joining a room
+    const unreadMessages = messages
+      .filter((msg) => msg.roomId === roomId && !msg.isRead)
+      .map((msg) => msg._id!);
+    if (unreadMessages.length > 0) {
+      markAsRead(roomId, unreadMessages);
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim() || !currentRoom) return;
+
+    sendMessage(
+      {
+        creatorId: "67d6b9f41a959043fee2f51a", // Replace with actual creator ID
+        message: newMessage,
+        type: "text",
+        roomId: currentRoom,
+        asCreator: false,
+      },
+      (response) => {
+        if (response.error) {
+          console.error("Send message error:", response.error);
+        } else {
+          setNewMessage("");
+        }
+      }
+    );
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="flex h-screen bg-gray-950">
+      {/* Sidebar with rooms */}
+      <div className="w-1/4 bg-gray-950 border-r border-gray-200">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-xl font-semibold">Chat Rooms</h2>
+          <p className="text-sm text-gray-500">
+            Status: {isConnected ? "Connected" : "Disconnected"}
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <div className="overflow-y-auto h-[calc(100vh-60px)]">
+          {rooms.length === 0 ? (
+            <p className="p-4 text-gray-500">No rooms available</p>
+          ) : (
+            <ul>
+              {rooms.map((room: IChatRoom) => (
+                <li
+                  key={room.roomId}
+                  className={`p-4 border-b border-gray-200 cursor-pointer hover:text-violet-600 ${
+                    currentRoom === room.roomId ? "bg-gray-600" : ""
+                  }`}
+                  onClick={() => handleJoinRoom(room.roomId)}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">{room.roomId}</span>
+                    {room.lastActivity && (
+                      <span className="text-xs text-gray-500">
+                        {new Date(room.lastActivity).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                  {room.lastMessage && (
+                    <p className="text-sm text-white truncate">
+                      {typeof room.lastMessage === "object" &&
+                      room.lastMessage !== null
+                        ? (room.lastMessage as { text?: string }).text ||
+                          "Media message"
+                        : "Loading..."}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col">
+        {currentRoom ? (
+          <>
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold">
+                Room: {currentRoom.substring(0, 15)}...
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-600">
+              {messages.filter((m) => m.roomId === currentRoom).length === 0 ? (
+                <p className="text-center text-gray-500 mt-8">
+                  No messages yet. Start the conversation!
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {messages
+                    .filter((m) => m.roomId === currentRoom)
+                    .map((message: IMessage) => (
+                      <div
+                        key={message._id}
+                        className={`flex ${
+                          message.senderType === "creator"
+                            ? "justify-start"
+                            : "justify-end"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                            message.senderType === "creator"
+                              ? "bg-white border border-gray-200"
+                              : "bg-blue-500 text-white"
+                          }`}
+                        >
+                          {message.text ? (
+                            <p>{message.text}</p>
+                          ) : message.imageUrl ? (
+                            <Image
+                              width={300}
+                              height={300}
+                              src={message.imageUrl}
+                              alt="Message content"
+                              className="max-w-full h-auto rounded"
+                            />
+                          ) : null}
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-xs opacity-70">
+                              {message.sender?.firstName || "Unknown"}
+                            </span>
+                            <span className="text-xs opacity-70">
+                              {new Date(message.sendAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-white">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type a message..."
+                  className="
+                  flex-1 border text-black border-y-violet-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:bg-blue-300"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <h3 className="text-xl font-medium text-gray-700">
+                Select a chat room
+              </h3>
+              <p className="text-gray-500 mt-2">
+                Choose a room from the sidebar to start chatting
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
