@@ -18,31 +18,48 @@ export interface ISender {
   profilePicture?: string;
 }
 
-export interface IMessage {
-  _id?: string;
-  roomId: string;
-  text?: string;
-  imageUrl?: string;
-  senderId: string;
-  creatorId: string;
-  senderType: SenderTypes;
-  sendAt: Date;
-  isRead: boolean;
-  type: MessageTypes;
-  sender?: ISender;
-}
-
 export interface IChatRoom {
-  roomId: string;
-  participants: string[];
-  creatorId: string;
-  lastMessage?: string;
   lastActivity: Date;
+  _id: string;
+  roomId: string;
+  type: "direct" | "group";
+  participants: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+  }[];
+  lastMessage?: IMessage;
+  unreadCount: number;
+  lastSeen: Record<string, Date>;
+  unreadCounts: Record<string, number>;
+  name?: string;
+  createdBy: string;
 }
 
+export interface IMessage {
+  _id: string;
+  conversation: string;
+  sender: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+  };
+  content?: string;
+  type: "text" | "image" | "video" | "tips";
+  sendAt: string;
+  readBy: string[];
+  isRead: boolean;
+  isEdited?: boolean;
+  isPinned?: boolean;
+}
 export interface IPagination {
   page: number;
   limit: number;
-  total: number;
+  totalMessages: number;
   totalPages: number;
+  hasMore: boolean;
 }

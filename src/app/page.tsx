@@ -9,20 +9,24 @@ export default function ChatComponent() {
   const {
     isConnected,
     messages,
-    rooms,
-    joinRoom,
+    conversations,
+    pagination,
+    joinConversation,
     sendMessage,
-    fetchRooms,
+    fetchConversations,
+    fetchMessages,
     markAsRead,
   } = useSocket();
 
-  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
+  const [currentConversation, setCurrentConversation] = useState<string | null>(
+    null
+  );
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+    fetchConversations();
+  }, [fetchConversations]);
 
   useEffect(() => {
     scrollToBottom();
@@ -32,32 +36,26 @@ export default function ChatComponent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleJoinRoom = (roomId: string) => {
-    joinRoom(roomId);
-    setCurrentRoom(roomId);
-    // Mark existing messages as read when joining a room
-    const unreadMessages = messages
-      .filter((msg) => msg.roomId === roomId && !msg.isRead)
-      .map((msg) => msg._id!);
-    if (unreadMessages.length > 0) {
-      markAsRead(roomId, unreadMessages);
-    }
+  const handleJoinConversation = (conversationId: string) => {
+    joinConversation(conversationId);
+    setCurrentConversation(conversationId);
+    fetchMessages(conversationId); // Fetch messages for the selected conversation
+    markAsRead(conversationId); // Mark all messages as read
   };
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !currentRoom) return;
+    if (!newMessage.trim() || !currentConversation) return;
 
     sendMessage(
       {
-        creatorId: "67d6b9f41a959043fee2f51a", // Replace with actual creator ID
-        message: newMessage,
+        conversationId: currentConversation,
+        content: newMessage,
         type: "text",
-        roomId: currentRoom,
-        asCreator: false,
       },
       (response) => {
         if (response.error) {
           console.error("Send message error:", response.error);
+          // Optionally show error to user (e.g., toast notification)
         } else {
           setNewMessage("");
         }
@@ -72,45 +70,64 @@ export default function ChatComponent() {
     }
   };
 
+  const handleLoadMore = () => {
+    if (pagination && pagination.hasMore && currentConversation) {
+      fetchMessages(currentConversation, pagination.page + 1, pagination.limit);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-950">
-      {/* Sidebar with rooms */}
+      {/* Sidebar with conversations */}
       <div className="w-1/4 bg-gray-950 border-r border-gray-200">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold">Chat Rooms</h2>
+          <h2 className="text-xl font-semibold text-white">Chat Rooms</h2>
           <p className="text-sm text-gray-500">
             Status: {isConnected ? "Connected" : "Disconnected"}
           </p>
         </div>
         <div className="overflow-y-auto h-[calc(100vh-60px)]">
-          {rooms.length === 0 ? (
-            <p className="p-4 text-gray-500">No rooms available</p>
+          {conversations.length === 0 ? (
+            <p className="p-4 text-gray-500">No conversations available</p>
           ) : (
             <ul>
-              {rooms.map((room: IChatRoom) => (
+              {conversations.map((conversation: IChatRoom) => (
                 <li
-                  key={room.roomId}
+                  key={conversation._id}
                   className={`p-4 border-b border-gray-200 cursor-pointer hover:text-violet-600 ${
-                    currentRoom === room.roomId ? "bg-gray-600" : ""
+                    currentConversation === conversation._id
+                      ? "bg-gray-600"
+                      : ""
                   }`}
-                  onClick={() => handleJoinRoom(room.roomId)}
+                  onClick={() => handleJoinConversation(conversation._id)}
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-medium">{room.roomId}</span>
-                    {room.lastActivity && (
+                    <span className="font-medium text-white">
+                      {conversation.name ||
+                        conversation.participants
+                          .map((p) => `${p.firstName} ${p.lastName}`)
+                          .join(", ")}
+                    </span>
+                    {conversation.lastActivity && (
                       <span className="text-xs text-gray-500">
-                        {new Date(room.lastActivity).toLocaleTimeString()}
+                        {new Date(
+                          conversation.lastActivity
+                        ).toLocaleTimeString()}
                       </span>
                     )}
                   </div>
-                  {room.lastMessage && (
+                  {conversation.lastMessage && (
                     <p className="text-sm text-white truncate">
-                      {typeof room.lastMessage === "object" &&
-                      room.lastMessage !== null
-                        ? (room.lastMessage as { text?: string }).text ||
-                          "Media message"
+                      {typeof conversation.lastMessage === "object" &&
+                      conversation.lastMessage !== null
+                        ? conversation.lastMessage.content || "Media message"
                         : "Loading..."}
                     </p>
+                  )}
+                  {conversation.unreadCount > 0 && (
+                    <span className="text-xs text-white bg-violet-600 rounded-full px-2 py-1">
+                      {conversation.unreadCount}
+                    </span>
                   )}
                 </li>
               ))}
@@ -121,49 +138,62 @@ export default function ChatComponent() {
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col">
-        {currentRoom ? (
+        {currentConversation ? (
           <>
             <div className="p-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">
-                Room: {currentRoom.substring(0, 15)}...
+              <h2 className="text-xl font-semibold text-white">
+                {conversations.find((c) => c._id === currentConversation)
+                  ?.name || currentConversation.substring(0, 15) + "..."}
               </h2>
+              {pagination && pagination.hasMore && (
+                <button
+                  onClick={handleLoadMore}
+                  className="text-sm text-blue-500 hover:underline"
+                >
+                  Load More
+                </button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-4 bg-gray-600">
-              {messages.filter((m) => m.roomId === currentRoom).length === 0 ? (
+              {messages.filter((m) => m.conversation === currentConversation)
+                .length === 0 ? (
                 <p className="text-center text-gray-500 mt-8">
                   No messages yet. Start the conversation!
                 </p>
               ) : (
                 <div className="space-y-4">
                   {messages
-                    .filter((m) => m.roomId === currentRoom)
+                    .filter((m) => m.conversation === currentConversation)
                     .map((message: IMessage) => (
                       <div
                         key={message._id}
                         className={`flex ${
-                          message.senderType === "creator"
-                            ? "justify-start"
-                            : "justify-end"
+                          message.sender._id === "current-user-id" // Replace with actual user ID
+                            ? "justify-end"
+                            : "justify-start"
                         }`}
                       >
                         <div
                           className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.senderType === "creator"
-                              ? "bg-white border border-gray-200"
-                              : "bg-blue-500 text-white"
+                            message.sender._id === "current-user-id"
+                              ? "bg-blue-500 text-white"
+                              : "bg-white border border-gray-200 text-black"
                           }`}
                         >
-                          {message.text ? (
-                            <p>{message.text}</p>
-                          ) : message.imageUrl ? (
+                          {message.content ? (
+                            <p>{message.content}</p>
+                          ) : message.type === "image" ||
+                            message.type === "video" ? (
                             <Image
                               width={300}
                               height={300}
-                              src={message.imageUrl}
+                              src={message.content || "/placeholder.png"} // Use placeholder if content is missing
                               alt="Message content"
                               className="max-w-full h-auto rounded"
                             />
-                          ) : null}
+                          ) : (
+                            <p>Unsupported message type</p>
+                          )}
                           <div className="flex justify-between items-center mt-1">
                             <span className="text-xs opacity-70">
                               {message.sender?.firstName || "Unknown"}
@@ -190,8 +220,7 @@ export default function ChatComponent() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Type a message..."
-                  className="
-                  flex-1 border text-black border-y-violet-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 border text-black border-y-violet-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   onClick={handleSendMessage}
@@ -207,10 +236,10 @@ export default function ChatComponent() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <h3 className="text-xl font-medium text-gray-700">
-                Select a chat room
+                Select a conversation
               </h3>
               <p className="text-gray-500 mt-2">
-                Choose a room from the sidebar to start chatting
+                Choose a conversation from the sidebar to start chatting
               </p>
             </div>
           </div>
